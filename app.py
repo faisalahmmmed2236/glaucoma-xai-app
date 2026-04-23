@@ -169,7 +169,7 @@ with st.sidebar:
 # ==========================================
 # 5. MAIN WORKSPACE
 # ==========================================
-st.markdown("""<div class="hud-container"><div style="font-size: 28px; font-weight: 800; color: #60a5fa;">👁️ Neural Diagnostic Workspace</div>
+st.markdown("""<div class="hud-container"><div style="font-size: 28px; font-weight: 800; color: #60a5fa;">👁️ Neural Diagnostic Workspace(Glaucoma)</div>
 <div style="color: #94a3b8; font-size: 14px;">Automated Screening Node • Enterprise Clinical v4.0</div></div>""", unsafe_allow_html=True)
 
 with st.container():
