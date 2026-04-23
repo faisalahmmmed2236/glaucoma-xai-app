@@ -151,7 +151,7 @@ with st.sidebar:
     
     st.markdown("""
         <div class="sidebar-feature-card"><b>🔬 XAI Powered</b>Grad-CAM++ engine visualizes pathological biomarkers.</div>
-        <div class="sidebar-feature-card"><b>🛡️ Robust Math</b>Validated on Drishti-GS (AUC 0.673).</div>
+        <div class="sidebar-feature-card"><b>🛡️ Robust Math</b>Train on HRF Tested on Drishti-GS .</div>
         <div class="sidebar-feature-card"><b>📊 EMR / PDF Ready</b>Syncs records & exports medical reports.</div>
     """, unsafe_allow_html=True)
 
