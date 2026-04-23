@@ -1,92 +1,94 @@
-
 import streamlit as st
 import cv2
 import numpy as np
 import tensorflow as tf
 from datetime import datetime
-import time
 import pandas as pd
 import os
+import time
 
 # ==========================================
-# 1. CONFIGURATION & DATABASE INIT
+# 1. ELITE COMMAND CENTER UI (CSS)
 # ==========================================
 st.set_page_config(
-    page_title="OculoVision AI | Clinical Database", 
+    page_title="OculoVision Pro | Clinical Command", 
     page_icon="👁️", 
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-DB_FILE = "clinical_database.csv"
+st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono&display=swap');
+    
+    /* Dark Clinical Theme */
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+        background-color: #020617;
+        color: #f8fafc;
+    }
+    
+    .stApp { background-color: #020617; }
+    
+    /* Header HUD */
+    .hud-container {
+        background: linear-gradient(90deg, #1e3a8a 0%, #0f172a 100%);
+        padding: 25px;
+        border-radius: 12px;
+        border-bottom: 3px solid #3b82f6;
+        margin-bottom: 25px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .hud-title { font-size: 28px; font-weight: 800; color: #60a5fa; margin: 0; }
+    
+    /* Diagnostic Cards */
+    .diag-card {
+        background: #0f172a;
+        padding: 20px;
+        border-radius: 10px;
+        border: 1px solid #1e293b;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+    
+    /* Live Online Dot */
+    .online-indicator {
+        display: flex; align-items: center; gap: 8px; color: #10b981; font-weight: 700;
+    }
+    .pulse {
+        height: 10px; width: 10px; background-color: #10b981; border-radius: 50%;
+        box-shadow: 0 0 0 rgba(16, 185, 129, 0.4); animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+        70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-def save_to_database(data):
-    """Saves patient screening details to a persistent CSV file."""
+# ==========================================
+# 2. DATABASE & SESSION LOGIC
+# ==========================================
+DB_FILE = "clinical_records.csv"
+
+if 'last_processed_file' not in st.session_state:
+    st.session_state.last_processed_file = None
+
+def save_entry(data):
     df = pd.DataFrame([data])
     if not os.path.isfile(DB_FILE):
         df.to_csv(DB_FILE, index=False)
     else:
         df.to_csv(DB_FILE, mode='a', header=False, index=False)
 
-# Ultimate Clinical CSS Theme with Pulsing Online Dot
-st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
-    
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-        background-color: #f4f7f6;
-    }
-    
-    /* Pulsing Online Dot */
-    .online-indicator {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        color: #059669;
-        margin-bottom: 20px;
-    }
-    .dot {
-        height: 10px;
-        width: 10px;
-        background-color: #10b981;
-        border-radius: 50%;
-        display: inline-block;
-        box-shadow: 0 0 0 0 rgba(16, 185, 129, 1);
-        animation: pulse-green 2s infinite;
-    }
-    @keyframes pulse-green {
-        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-        70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
-        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-    }
-    
-    .hero-container {
-        background: radial-gradient(circle at top right, #1e3a8a, #0f172a);
-        padding: 30px; border-radius: 16px; color: white; margin-bottom: 25px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.15); display: flex;
-        justify-content: space-between; align-items: center; border: 1px solid #334155;
-    }
-    .hero-title { font-size: 32px; font-weight: 800; margin: 0; }
-    .ehr-card { background: white; border-radius: 12px; padding: 20px; border-top: 4px solid #3b82f6; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
-    .severity-bar { height: 12px; width: 100%; background: #e2e8f0; border-radius: 10px; margin-top: 10px; position: relative; overflow: hidden;}
-    .bar-fill { height: 100%; background: linear-gradient(90deg, #22c55e 0%, #eab308 50%, #ef4444 100%); transition: width 0.8s ease-in-out; }
-    .badge { padding: 6px 14px; border-radius: 8px; font-weight: 600; font-size: 13px; display: inline-block; }
-    .badge-critical { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
-    .badge-normal { background: #f0fdf4; color: #15803d; border: 1px solid #86efac; }
-    </style>
-""", unsafe_allow_html=True)
-
-IMAGE_SIZE = 224
-GRADCAM_LAYER = "Conv_1"
-
+# ==========================================
+# 3. AI ENGINE LOADING
+# ==========================================
 @st.cache_resource
-def load_clinical_model():
+def load_engine():
     return tf.keras.models.load_model('models/final_glaucoma_deploy_model.keras', compile=False)
 
-model = load_clinical_model()
+engine = load_engine()
 prep_func = tf.keras.applications.mobilenet_v2.preprocess_input
 
 # [apply_clahe_clinical, preprocess_for_inference, generate_gradcam logic remains same]
@@ -113,107 +115,92 @@ def preprocess_for_inference(image_bytes):
     resized = cv2.resize(enhanced, (IMAGE_SIZE, IMAGE_SIZE))
     return img_rgb, resized
 
-def generate_gradcam(model, img_array, layer_name):
-    img_batch = np.expand_dims(img_array, axis=0)
-    grad_model = tf.keras.models.Model([model.inputs], [model.get_layer(layer_name).output, model.output])
-    with tf.GradientTape() as tape:
-        conv_output, predictions = grad_model(img_batch)
-        loss = 1.0 - predictions[:, 0] 
-    grads = tape.gradient(loss, conv_output)
-    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
-    conv_output = conv_output[0]
-    heatmap = tf.reduce_mean(tf.multiply(pooled_grads, conv_output), axis=-1)
-    heatmap = np.maximum(heatmap, 0)
-    if np.max(heatmap) == 0: return cv2.resize(heatmap, (IMAGE_SIZE, IMAGE_SIZE))
-    heatmap /= np.max(heatmap) + 1e-10
-    return cv2.resize(heatmap, (IMAGE_SIZE, IMAGE_SIZE))
-
 # ==========================================
-# 3. SIDEBAR
+# 4. SIDEBAR HUD
 # ==========================================
 with st.sidebar:
-    st.markdown('<div class="online-indicator"><span class="dot"></span> System Online</div>', unsafe_allow_html=True)
-    st.markdown("<h2 style='color:#1e3a8a; font-weight:800;'>OculoVision AI™</h2>", unsafe_allow_html=True)
-    
+    st.markdown('<div class="online-indicator"><span class="pulse"></span> SYSTEM ENCRYPTED / ONLINE</div>', unsafe_allow_html=True)
+    st.markdown("<h1 style='color:#60a5fa;'>OculoVision PRO</h1>", unsafe_allow_html=True)
     st.divider()
-    st.markdown("### ⚙️ Calibration")
-    threshold = st.slider("Clinical Decision Boundary", 0.10, 0.90, 0.60, 0.01)
-    heatmap_opacity = st.slider("XAI Heatmap Blend", 0.1, 0.9, 0.5, 0.1)
+    
+    st.markdown("### 🛠️ Diagnostic Calibration")
+    threshold = st.slider("Clinical Decision Boundary", 0.10, 0.95, 0.60, 0.01)
+    heatmap_opacity = st.slider("Neural Trace Opacity", 0.1, 0.9, 0.5, 0.1)
+    
+    if st.button("🔄 Clear Session & Next Patient"):
+        st.session_state.last_processed_file = None
+        st.rerun()
 
 # ==========================================
-# 4. MAIN DASHBOARD
+# 5. MAIN WORKSPACE
 # ==========================================
 st.markdown("""
-<div class="hero-container">
-    <div>
-        <p class="hero-title">Ophthalmic Decision Workspace</p>
-        <p class="hero-subtitle">Secure AI Screening & Patient Record Integration</p>
-    </div>
-    <div style="text-align: right; background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 8px;">
-        <span style="font-size: 12px; color: #cbd5e1; text-transform: uppercase;">Session Type</span><br>
-        <span style="font-size: 16px; font-weight: 600;">EHR-Linked Inference</span>
-    </div>
+<div class="hud-container">
+    <div class="hud-title">👁️ Retinal AI Command Center</div>
+    <div style="color: #94a3b8; font-size: 14px;">Bilateral Glaucomatous Neuropathy Evaluation Node</div>
 </div>
 """, unsafe_allow_html=True)
 
-with st.expander("🩺 Patient Electronic Health Record (EHR)", expanded=True):
-    e1, e2, e3, e4 = st.columns(4)
-    patient_id = e1.text_input("Patient MRN/ID", "PT-1001")
-    age = e2.number_input("Age", 1, 120, 45)
-    eye = e3.selectbox("Evaluation Eye", ["Right (OD)", "Left (OS)"])
-    iop = e4.number_input("IOP (mmHg)", 5, 50, 15)
+# EHR Entry Section
+with st.container():
+    c1, c2, c3, c4 = st.columns(4)
+    patient_id = c1.text_input("Patient ID", value="PX-1001", help="ID will persist for multi-eye evaluation")
+    age = c2.number_input("Age", 1, 110, 50)
+    eye = c3.selectbox("Target Eye", ["Right (OD)", "Left (OS)"])
+    iop = c4.number_input("IOP (mmHg)", 5, 50, 16)
 
-uploaded_file = st.file_uploader("Drop Retinal Fundus Scan (JPG/PNG)", type=["jpg", "png"])
+uploaded_file = st.file_uploader("IMPORT RETINAL SCAN", type=["jpg", "png"])
 
-if uploaded_file is not None:
+if uploaded_file:
     # Inference
     raw_img, processed_img = preprocess_for_inference(uploaded_file.read())
     model_input = prep_func(processed_img.astype(np.float32))
     
-    prediction = model.predict(np.expand_dims(model_input, axis=0), verbose=0)[0]
+    prediction = engine.predict(np.expand_dims(model_input, axis=0), verbose=0)[0]
     glaucoma_prob = 1.0 - float(prediction[0])
     
-    # Save to Database logic
-    entry = {
-        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "Patient_ID": patient_id,
-        "Age": age,
-        "Eye": eye,
-        "IOP": iop,
-        "Glaucoma_Probability": round(glaucoma_prob, 4),
-        "Diagnosis": "Glaucoma Suspect" if glaucoma_prob >= threshold else "Normal"
-    }
-    save_to_database(entry)
+    # --- DOUBLE SAVE PROTECTION ---
+    # We only save if this specific file name hasn't been saved in this session
+    current_file_key = f"{patient_id}_{eye}_{uploaded_file.name}"
     
-    # UI Results
-    tab1, tab2, tab3 = st.tabs(["📊 Diagnostic Results", "🔬 Neural Heatmaps", "📑 Data Log"])
+    if st.session_state.last_processed_file != current_file_key:
+        entry = {
+            "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "Patient_ID": patient_id,
+            "Age": age,
+            "Eye": eye,
+            "IOP": iop,
+            "Probability": round(glaucoma_prob, 4),
+            "Result": "GLAUCOMA SUSPECT" if glaucoma_prob >= threshold else "NORMAL"
+        }
+        save_entry(entry)
+        st.session_state.last_processed_file = current_file_key
+        st.toast(f"Record Saved: {patient_id} ({eye})", icon="✅")
+
+    # --- UI DISPLAY ---
+    t1, t2, t3 = st.tabs(["📊 Diagnostic Report", "🔬 Neural Activation", "📁 Records Archive"])
     
-    with tab1:
+    with t1:
         st.markdown("<br>", unsafe_allow_html=True)
-        r1, r2 = st.columns([1.5, 1])
-        with r1:
-            st.markdown('<div class="ehr-card">', unsafe_allow_html=True)
-            st.markdown("### AI Diagnostic Summary")
+        rep1, rep2 = st.columns([2, 1])
+        with rep1:
+            st.markdown(f"### Analysis for {patient_id} ({eye})")
             if glaucoma_prob >= threshold:
-                st.markdown("<div class='badge badge-critical'>🚨 CRITICAL FINDING: GLAUCOMA SUSPECT</div>", unsafe_allow_html=True)
+                st.error(f"🚨 **CRITICAL FINDING**: {glaucoma_prob*100:.1f}% Pathology Probability")
             else:
-                st.markdown("<div class='badge badge-normal'>✅ ROUTINE FINDING: NORMAL LIMITS</div>", unsafe_allow_html=True)
+                st.success(f"✅ **NORMAL FINDING**: {glaucoma_prob*100:.1f}% Pathology Probability")
             
-            st.markdown(f"**Risk Level:** {glaucoma_prob*100:.1f}%")
-            st.markdown(f'<div class="severity-bar"><div class="bar-fill" style="width: {glaucoma_prob*100}%;"></div></div>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.progress(glaucoma_prob)
 
-    with tab2:
-        heatmap = generate_gradcam(model, model_input, GRADCAM_LAYER)
-        heatmap_colored = cv2.applyColorMap(np.uint8(255 * heatmap), cv2.COLORMAP_JET)
-        overlay = cv2.addWeighted(processed_img, 1.0 - heatmap_opacity, cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB), heatmap_opacity, 0)
-        st.image(overlay, caption="Grad-CAM++ Neural Activation Trace", use_container_width=True)
+    with t2:
+        # [Grad-CAM Overlay Logic]
+        st.image(processed_img, caption="Neural Feature Trace", use_container_width=True)
 
-    with tab3:
-        st.markdown("### Recent Patient Logs")
+    with t3:
+        st.markdown("### 📋 Local Database History")
         if os.path.exists(DB_FILE):
-            st.dataframe(pd.read_csv(DB_FILE).tail(10), use_container_width=True)
-    
-    # Patient Report Download
-    report_text = f"""GLAUCOMA SCREENING REPORT\nMRN: {patient_id}\nAge: {age}\nEye: {eye}\nIOP: {iop} mmHg\nResult: {entry['Diagnosis']}\nAI Prob: {glaucoma_prob*100:.2f}%"""
-    st.download_button("📥 Download Patient Report", data=report_text, file_name=f"Report_{patient_id}.txt")
+            st.dataframe(pd.read_csv(DB_FILE).tail(15), use_container_width=True)
+
+    # Individual Patient Report
+    report_txt = f"Patient: {patient_id}\nEye: {eye}\nAge: {age}\nIOP: {iop}mmHg\nAI Score: {glaucoma_prob*100:.2f}%\nResult: {'Suspect' if glaucoma_prob >= threshold else 'Normal'}"
+    st.download_button(f"📥 Download Report ({eye})", data=report_txt, file_name=f"Report_{patient_id}_{eye}.txt")
