@@ -3,63 +3,57 @@ import cv2
 import numpy as np
 import tensorflow as tf
 from datetime import datetime
+import io
 
 # ==========================================
-# 1. CONFIGURATION & ADVANCED CSS
+# 1. CONFIGURATION & ENTERPRISE CSS
 # ==========================================
 st.set_page_config(
-    page_title="Glaucoma AI Clinical Dashboard", 
-    page_icon="⚕️", 
+    page_title="OculoVision AI | Clinical Workspace", 
+    page_icon="👁️", 
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Enterprise-grade CSS styling
+# Advanced Medical UI CSS
 st.markdown("""
     <style>
-    /* Main Background & Typography */
-    .stApp { background-color: #F8FAFC; }
-    h1, h2, h3 { color: #0F172A; font-family: 'Inter', sans-serif; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     
-    /* Custom Header */
-    .clinical-header {
-        background: linear-gradient(90deg, #1E3A8A 0%, #3B82F6 100%);
-        padding: 2rem;
-        border-radius: 10px;
+    html, body, [class*="css"]  {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    .main-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+        padding: 24px;
+        border-radius: 12px;
         color: white;
-        margin-bottom: 2rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        margin-bottom: 24px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
-    .clinical-header h1 { color: white; margin: 0; font-size: 2.2rem; }
-    .clinical-header p { color: #E0E7FF; margin: 0; font-size: 1.1rem; }
+    .header-text h1 { color: #ffffff; margin: 0; font-size: 28px; font-weight: 700; }
+    .header-text p { color: #94a3b8; margin: 0; font-size: 14px; font-weight: 500; }
     
-    /* Info Cards */
-    .info-card {
-        background-color: white;
-        padding: 1.5rem;
-        border-radius: 10px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        border-left: 5px solid #3B82F6;
-        margin-bottom: 1rem;
+    .status-badge-safe { background: #dcfce7; color: #166534; padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 12px; border: 1px solid #bbf7d0;}
+    .status-badge-danger { background: #fee2e2; color: #991b1b; padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 12px; border: 1px solid #fecaca;}
+    
+    .card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e2e8f0;
+        margin-bottom: 16px;
     }
     
-    /* Alert Boxes */
-    .alert-danger {
-        background-color: #FEF2F2;
-        border: 1px solid #F87171;
-        border-left: 5px solid #DC2626;
-        padding: 1.5rem;
-        border-radius: 8px;
-        color: #991B1B;
-    }
-    .alert-safe {
-        background-color: #F0FDF4;
-        border: 1px solid #4ADE80;
-        border-left: 5px solid #16A34A;
-        padding: 1.5rem;
-        border-radius: 8px;
-        color: #166534;
-    }
+    /* Customizing Streamlit's default components */
+    .stProgress > div > div > div > div { background-color: #3b82f6; }
+    .stTabs [data-baseweb="tab-list"] { gap: 24px; }
+    .stTabs [data-baseweb="tab"] { height: 50px; white-space: pre-wrap; font-weight: 600; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -74,7 +68,7 @@ model = load_clinical_model()
 prep_func = tf.keras.applications.mobilenet_v2.preprocess_input
 
 # ==========================================
-# 2. CLINICAL PREPROCESSING
+# 2. PREPROCESSING & XAI LOGIC
 # ==========================================
 def apply_clahe_clinical(img):
     lab = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
@@ -100,12 +94,8 @@ def preprocess_for_inference(image_bytes):
         
     enhanced = apply_clahe_clinical(masked)
     resized = cv2.resize(enhanced, (IMAGE_SIZE, IMAGE_SIZE))
-    
     return img_rgb, resized
 
-# ==========================================
-# 3. EXPLAINABLE AI (Grad-CAM++)
-# ==========================================
 def generate_gradcam(model, img_array, layer_name):
     img_batch = np.expand_dims(img_array, axis=0)
     grad_model = tf.keras.models.Model([model.inputs], [model.get_layer(layer_name).output, model.output])
@@ -127,39 +117,50 @@ def generate_gradcam(model, img_array, layer_name):
     return cv2.resize(heatmap, (IMAGE_SIZE, IMAGE_SIZE))
 
 # ==========================================
-# 4. DASHBOARD UI
+# 3. SIDEBAR & CONTROLS
 # ==========================================
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/2966/2966327.png", width=60)
+    st.markdown("## OculoVision AI")
+    st.markdown("<span class='status-badge-safe'>● System Online</span>", unsafe_allow_html=True)
+    st.divider()
+    
+    st.markdown("### 📋 Session Setup")
+    patient_id = st.text_input("Patient MRN / ID", placeholder="Ex: PT-98421")
+    exam_date = datetime.now().strftime('%Y-%m-%d %H:%M')
+    st.caption(f"Session Timestamp: {exam_date}")
+    
+    st.divider()
+    st.markdown("### ⚙️ Diagnostic Parameters")
+    threshold = st.slider("Diagnostic Threshold", 0.10, 0.90, 0.60, 0.01, help="Operating point optimized via Youden's J")
+    
+    # NEW FEATURE: Interactive Heatmap Control
+    heatmap_opacity = st.slider("XAI Heatmap Opacity", 0.1, 0.9, 0.5, 0.1, help="Adjust overlay blend ratio")
+    
+    st.divider()
+    st.info("**Engine:** MobileNetV2 Ensemble\n**Validation AUC:** 0.673 (External)")
 
-# Top Header Banner
-st.markdown("""
-<div class="clinical-header">
-    <h1>⚕️ Retinal AI Diagnostic Workspace</h1>
-    <p>MobileNetV2 Ensemble • Validated against Drishti-GS (AUC: 0.673)</p>
+# ==========================================
+# 4. MAIN DASHBOARD
+# ==========================================
+st.markdown(f"""
+<div class="main-header">
+    <div class="header-text">
+        <h1>Glaucoma Screening Workspace</h1>
+        <p>Deep Learning Clinical Decision Support System</p>
+    </div>
+    <div style="text-align: right;">
+        <span style="color: #64748b; font-size: 12px; font-weight: bold;">CURRENT PATIENT</span><br>
+        <span style="color: white; font-size: 18px; font-weight: bold;">{patient_id if patient_id else 'Unregistered'}</span>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
-# --- Sidebar: Patient Details & Settings ---
-with st.sidebar:
-    st.markdown("### 📋 Session Details")
-    patient_id = st.text_input("Patient ID / Reference (Optional)", placeholder="e.g., P-8472")
-    st.text(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    
-    st.markdown("---")
-    st.markdown("### ⚙️ System Calibration")
-    threshold = st.slider("Clinical Decision Threshold", min_value=0.10, max_value=0.90, value=0.60, step=0.01, 
-                          help="0.60 optimized via Youden's J Statistic.")
-    
-    st.markdown("---")
-    st.info("ℹ️ **Research Use Only.** Not cleared by FDA/EMA for primary diagnosis.")
-
-# --- Main Work Area ---
-st.markdown('<div class="info-card"><strong>Instructions:</strong> Please upload a high-resolution fundus photograph. Ensure the optic disc is clearly visible and centered.</div>', unsafe_allow_html=True)
-
-uploaded_file = st.file_uploader("", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
+uploaded_file = st.file_uploader("Drop Fundus DICOM / Image Here", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # Process the image globally
-    with st.spinner('Initializing Neural Network & generating XAI heatmaps...'):
+    # --- Execute AI Pipeline ---
+    with st.spinner('Initiating Neural Network Analysis...'):
         raw_img, processed_img = preprocess_for_inference(uploaded_file.read())
         model_input = prep_func(processed_img.astype(np.float32))
         
@@ -168,68 +169,105 @@ if uploaded_file is not None:
         
         heatmap = generate_gradcam(model, model_input, GRADCAM_LAYER)
         heatmap_colored = cv2.applyColorMap(np.uint8(255 * heatmap), cv2.COLORMAP_JET)
-        overlay = cv2.addWeighted(processed_img, 0.6, cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB), 0.4, 0)
+        
+        # Apply the user-defined dynamic opacity
+        overlay = cv2.addWeighted(processed_img, 1.0 - heatmap_opacity, cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB), heatmap_opacity, 0)
 
-    # --- Create Professional Tabs ---
-    tab1, tab2, tab3 = st.tabs(["📑 Clinical Report", "👁️ Imaging Analysis", "⚙️ Technical Logs"])
+    # --- UI Tabs ---
+    tab1, tab2, tab3 = st.tabs(["📊 Executive Summary", "🔬 XAI Deep Dive", "📄 Export Report"])
     
-    # TAB 1: CLINICAL REPORT (The Executive Summary)
+    # ------------------------------------
+    # TAB 1: EXECUTIVE SUMMARY
+    # ------------------------------------
     with tab1:
         st.markdown("<br>", unsafe_allow_html=True)
-        col_metric, col_alert = st.columns([1, 2])
+        col_img, col_report = st.columns([1.2, 1])
         
-        with col_metric:
-            st.metric(label="Calculated Probability", value=f"{glaucoma_prob * 100:.1f}%", delta=f"Threshold: {threshold*100:.0f}%", delta_color="off")
-            st.progress(glaucoma_prob)
+        with col_img:
+            st.image(overlay, caption=f"Dynamic XAI Overlay (Opacity: {heatmap_opacity*100:.0f}%)", use_container_width=True)
             
-        with col_alert:
+        with col_report:
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.markdown("### AI Diagnostic Output")
+            
+            # Dynamic Severity Badge
             if glaucoma_prob >= threshold:
-                st.markdown(f"""
-                <div class="alert-danger">
-                    <h3 style="color: #991B1B; margin-top: 0;">⚠️ Referral Recommended: Glaucoma Suspect</h3>
-                    <p style="margin-bottom: 0;">The ensemble model detected structural features highly correlated with glaucomatous neuropathy. Review the XAI heatmaps in the Imaging tab to confirm focus on the optic disc/cup ratio.</p>
-                </div>
-                """, unsafe_allow_html=True)
+                badge = "<span class='status-badge-danger'>High Risk: Glaucoma Suspect</span>"
+                alert_text = "The neural ensemble detected structural anomalies within the fundus highly correlated with glaucomatous neuropathy."
             else:
-                st.markdown(f"""
-                <div class="alert-safe">
-                    <h3 style="color: #166534; margin-top: 0;">✅ Normal Finding: Routine Follow-up</h3>
-                    <p style="margin-bottom: 0;">The model did not detect significant glaucomatous patterns above the specified clinical threshold. Standard routine screening schedule is recommended.</p>
-                </div>
-                """, unsafe_allow_html=True)
-        
-        st.markdown("---")
-        # Mock Medical Sign-off
-        st.text_input("Reviewing Physician Notes:", placeholder="Enter clinical observations here...")
-        st.button("💾 Export Encrypted Report to EMR", disabled=True, help="Disabled in Demo Mode")
+                badge = "<span class='status-badge-safe'>Low Risk: Normal Variant</span>"
+                alert_text = "No significant glaucomatous patterns were detected above the clinical operating threshold."
+                
+            st.markdown(f"{badge}", unsafe_allow_html=True)
+            st.markdown(f"<p style='margin-top:15px; color:#475569;'>{alert_text}</p>", unsafe_allow_html=True)
+            
+            st.divider()
+            
+            st.markdown("**Pathology Probability Model:**")
+            st.progress(glaucoma_prob)
+            st.metric(
+                label="Absolute Confidence", 
+                value=f"{glaucoma_prob * 100:.1f}%", 
+                delta=f"{(glaucoma_prob - threshold) * 100:.1f}% from cutoff",
+                delta_color="inverse" if glaucoma_prob >= threshold else "normal"
+            )
+            st.markdown('</div>', unsafe_allow_html=True)
 
-    # TAB 2: IMAGING ANALYSIS (The Visual Proof)
+    # ------------------------------------
+    # TAB 2: XAI DEEP DIVE
+    # ------------------------------------
     with tab2:
         st.markdown("<br>", unsafe_allow_html=True)
-        img_col1, img_col2, img_col3 = st.columns(3)
+        st.markdown("Analyze the progression of the image through the AI's internal pipeline.")
         
-        with img_col1:
-            st.markdown("**1. Raw Fundus Capture**")
-            st.image(raw_img, use_container_width=True)
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.image(raw_img, caption="1. Raw Patient Capture", use_container_width=True)
+        with c2:
+            st.image(processed_img, caption="2. CLAHE Masked (Network Input)", use_container_width=True)
+        with c3:
+            # Show isolated heatmap for clarity
+            isolated_heat = cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB)
+            st.image(isolated_heat, caption="3. Isolated Grad-CAM++ Activations", use_container_width=True)
             
-        with img_col2:
-            st.markdown("**2. System Preprocessing**")
-            st.image(processed_img, caption="CLAHE Enhancement & Polar Masking", use_container_width=True)
-            
-        with img_col3:
-            st.markdown("**3. Grad-CAM++ Activation**")
-            st.image(overlay, caption="Red/Yellow indicates highest AI attention", use_container_width=True)
+        st.markdown('<div class="card"><strong>Clinical Note:</strong> Red/Yellow regions in the isolated activation map indicate the spatial features that maximally excited the network towards a positive Glaucoma diagnosis. Ensure these align with the optic disc/cup region for clinical validity.</div>', unsafe_allow_html=True)
 
-    # TAB 3: TECHNICAL LOGS (For the nerds/reviewers)
+    # ------------------------------------
+    # TAB 3: EXPORT & DOCUMENTATION
+    # ------------------------------------
     with tab3:
         st.markdown("<br>", unsafe_allow_html=True)
-        st.json({
-            "Session_ID": f"SYS-{datetime.now().timestamp()}",
-            "Patient_Ref": patient_id if patient_id else "Anonymous",
-            "Image_Dimensions": f"{raw_img.shape[1]}x{raw_img.shape[0]} px",
-            "Model_Input_Shape": "(1, 224, 224, 3)",
-            "Active_Architecture": "MobileNetV2 (Feature Extractor)",
-            "XAI_Target_Layer": GRADCAM_LAYER,
-            "Raw_Model_Output": float(prediction[0]),
-            "Inverted_Glaucoma_Score": glaucoma_prob
-        })
+        st.markdown("### Generate Clinical Documentation")
+        
+        doctor_notes = st.text_area("Reviewing Physician Notes:", placeholder="Enter clinical observations, cup-to-disc ratio notes, or follow-up plans here...")
+        
+        # Build the downloadable text report
+        report_content = f"""
+======================================================
+OCULOVISION AI - CLINICAL DIAGNOSTIC REPORT
+======================================================
+Date Generated:   {exam_date}
+Patient ID:       {patient_id if patient_id else "Unregistered Patient"}
+System Model:     MobileNetV2 Ensemble (Ext. AUC 0.673)
+
+--- ANALYSIS RESULTS ---
+Probability:      {glaucoma_prob * 100:.2f}%
+Threshold:        {threshold * 100:.2f}%
+Diagnosis Flag:   {"GLAUCOMA SUSPECT - REFERRAL RECOMMENDED" if glaucoma_prob >= threshold else "NORMAL - ROUTINE SCREENING"}
+
+--- PHYSICIAN NOTES ---
+{doctor_notes if doctor_notes else "No notes provided at time of export."}
+
+======================================================
+Disclaimer: AI-assisted analysis is for decision support 
+only and does not constitute a final medical diagnosis.
+======================================================
+"""
+        st.text_area("Preview Report:", value=report_content, height=250, disabled=True)
+        
+        st.download_button(
+            label="📄 Download Official Text Report",
+            data=report_content,
+            file_name=f"Glaucoma_Report_{patient_id if patient_id else 'Anon'}_{datetime.now().strftime('%Y%m%d')}.txt",
+            mime="text/plain"
+        )
