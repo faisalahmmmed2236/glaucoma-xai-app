@@ -2,4 +2,6 @@ streamlit
 tensorflow-cpu
 opencv-python-headless
 numpy
-Pillow
+Pillow 
+plotly
+pandas
