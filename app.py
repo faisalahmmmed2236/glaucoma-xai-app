@@ -140,20 +140,23 @@ def generate_gradcam(model, img_array, layer_name):
     return cv2.resize(heatmap, (IMAGE_SIZE, IMAGE_SIZE))
 
 # ==========================================
-# 4. SIDEBAR (History & Features)
+# 4. SIDEBAR (History & Auto-Update)
 # ==========================================
+if 'p_count' not in st.session_state: st.session_state.p_count = 1001
+if 'processed_flag' not in st.session_state: st.session_state.processed_flag = False
+
 with st.sidebar:
     st.markdown('<div class="online-indicator"><span class="pulse"></span> SYSTEM SECURE</div>', unsafe_allow_html=True)
     st.markdown("<h2 style='color:#60a5fa;'>OculoVision PRO</h2>", unsafe_allow_html=True)
     
     st.markdown("""
         <div class="sidebar-feature-card"><b>🔬 XAI Powered</b>Grad-CAM++ engine visualizes pathological biomarkers.</div>
-        <div class="sidebar-feature-card"><b>🛡️ Robust Math</b>Validated against external hospital datasets.</div>
-        <div class="sidebar-feature-card"><b>📊 EMR / PDF Ready</b>Syncs records & exports medical-grade reports.</div>
+        <div class="sidebar-feature-card"><b>🛡️ Robust Math</b>Validated on Drishti-GS (AUC 0.673).</div>
+        <div class="sidebar-feature-card"><b>📊 EMR / PDF Ready</b>Syncs records & exports medical reports.</div>
     """, unsafe_allow_html=True)
 
     if st.button("🚀 Auto-Update: Next Patient"):
-        st.session_state.p_count = st.session_state.get('p_count', 1000) + 1
+        st.session_state.p_count += 1
         st.session_state.processed_flag = False
         st.rerun()
 
@@ -161,14 +164,11 @@ with st.sidebar:
     st.markdown("### 📁 Clinical History Log")
     if os.path.exists(DB_FILE):
         hist_df = pd.read_csv(DB_FILE)
-        st.dataframe(hist_df[['Patient_ID', 'Eye', 'Result']].tail(8), use_container_width=True)
+        st.dataframe(hist_df[['Patient_ID', 'Eye', 'Result']].tail(10), use_container_width=True)
 
 # ==========================================
 # 5. MAIN WORKSPACE
 # ==========================================
-if 'p_count' not in st.session_state: st.session_state.p_count = 1001
-if 'processed_flag' not in st.session_state: st.session_state.processed_flag = False
-
 st.markdown("""<div class="hud-container"><div style="font-size: 28px; font-weight: 800; color: #60a5fa;">👁️ Neural Diagnostic Workspace</div>
 <div style="color: #94a3b8; font-size: 14px;">Automated Screening Node • Enterprise Clinical v4.0</div></div>""", unsafe_allow_html=True)
 
@@ -182,6 +182,7 @@ with st.container():
 uploaded_file = st.file_uploader("DROP SCAN HERE", type=["jpg", "png"])
 
 if uploaded_file:
+    # Inference
     raw_img, processed_img = preprocess_for_inference(uploaded_file.read())
     model_input = prep_func(processed_img.astype(np.float32))
     
@@ -189,16 +190,18 @@ if uploaded_file:
     glaucoma_prob = 1.0 - float(prediction[0])
     diag_result = "GLAUCOMA SUSPECT" if glaucoma_prob >= 0.60 else "NORMAL"
     
-    # Automated Data Log
-    db_entry = {
-        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "Patient_ID": p_id, "Age": age, "Eye": eye, "IOP": iop,
-        "Prob": f"{glaucoma_prob*100:.1f}%", "Result": diag_result
-    }
+    # --- AUTO-SAVE LOGIC (FIXED) ---
+    current_key = f"{p_id}_{eye}_{uploaded_file.name}"
     
     if not st.session_state.processed_flag:
+        db_entry = {
+            "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "Patient_ID": p_id, "Age": age, "Eye": eye, "IOP": iop,
+            "Prob": f"{glaucoma_prob*100:.1f}%", "Result": diag_result
+        }
         save_to_history(db_entry)
         st.session_state.processed_flag = True
+        st.toast(f"Record logged for {p_id}", icon="💾")
 
     # Tabs
     t1, t2, t3 = st.tabs(["📊 Diagnostic HUD", "🔬 Neural Trace", "📑 Patient Report"])
@@ -213,10 +216,13 @@ if uploaded_file:
         heatmap = generate_gradcam(engine, model_input, GRADCAM_LAYER)
         heatmap_colored = cv2.applyColorMap(np.uint8(255 * heatmap), cv2.COLORMAP_JET)
         overlay = cv2.addWeighted(processed_img, 0.5, cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB), 0.5, 0)
-        st.image(overlay, use_container_width=True)
+        st.image(overlay, caption="Neural Activation Map", use_container_width=True)
 
     with t3:
         st.markdown("### Official Clinical Documentation")
-        pdf_bytes = create_medical_report(db_entry)
+        report_data = {
+            "Patient_ID": p_id, "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "Eye": eye, "IOP": iop, "Result": diag_result, "Prob": f"{glaucoma_prob*100:.1f}%"
+        }
+        pdf_bytes = create_medical_report(report_data)
         st.download_button(f"📥 Download Official PDF ({p_id})", data=pdf_bytes, file_name=f"Report_{p_id}.pdf")
-        st.info("The report includes automated medical reasoning based on structural biomarkers.")
